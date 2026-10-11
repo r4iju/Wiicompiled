@@ -2,11 +2,11 @@
 # Optional personal artwork and display name never enter the source tree.
 set -euo pipefail
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-[[ $# == 2 ]] || { echo 'Usage: apply-local-branding.command {macos|tvos-simulator} APP' >&2; exit 2; }
+[[ $# == 2 ]] || { echo 'Usage: apply-local-branding.command {macos|tvos-simulator|tvos-device} APP' >&2; exit 2; }
 platform=$1; app=$2; branding="$root/local-branding"
 case "$platform" in
     macos) plist="$app/Contents/Info.plist"; resources="$app/Contents/Resources" ;;
-    tvos-simulator) plist="$app/Info.plist"; resources="$app" ;;
+    tvos-simulator|tvos-device) plist="$app/Info.plist"; resources="$app" ;;
     *) echo 'Unsupported branding platform' >&2; exit 2 ;;
 esac
 [[ -f "$plist" ]] || { echo "Missing app plist: $plist" >&2; exit 1; }
@@ -15,11 +15,11 @@ if [[ "$platform" == macos && -f "$branding/AppIcon.icns" ]]; then
     ditto "$branding/AppIcon.icns" "$resources/LocalAppIcon.icns"
     /usr/libexec/PlistBuddy -c 'Set :CFBundleIconFile LocalAppIcon' "$plist" 2>/dev/null ||
         /usr/libexec/PlistBuddy -c 'Add :CFBundleIconFile string LocalAppIcon' "$plist"
-elif [[ "$platform" == tvos-simulator && -d "$branding/Assets.xcassets" ]]; then
+elif [[ "$platform" == tvos-* && -d "$branding/Assets.xcassets" ]]; then
     partial=$(mktemp)
     trap 'rm -f "$partial"' EXIT
     xcrun actool "$branding/Assets.xcassets" --compile "$resources" \
-        --platform appletvsimulator --minimum-deployment-target 27.0 \
+        --platform "$([[ "$platform" == tvos-device ]] && echo appletvos || echo appletvsimulator)" --minimum-deployment-target 27.0 \
         --target-device tv --app-icon AppIcon --output-partial-info-plist "$partial"
     /usr/bin/python3 - "$plist" "$partial" <<'PY'
 import plistlib, sys

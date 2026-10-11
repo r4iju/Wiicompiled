@@ -406,3 +406,33 @@ Simulator verification establishes startup, rendering, input processing, and
 race progression on the Studio. It does not establish frame rate, memory limits,
 Xbox pairing, or deployment readiness on a physical Apple TV. This target does
 not package Retro Rewind or the VR fork.
+
+## Experimental physical Apple TV build
+
+The device target uses `appletvos` in a separate `build-tvos-device` directory.
+It excludes simulator automation and the simulator shared-event fallback. The
+fixed guest address base is 448 GiB, verified by a sparse 4 GiB reservation on
+Apple TV 4K (second generation, A12, tvOS 27). The Mac and simulator retain their
+existing address base. Desktop MetalFX sharing is excluded on tvOS.
+
+```bash
+Launcher/local-build-tvos-device.command
+Launcher/tvos/install-device.command <APPLE-TV-UDID> /path/to/development.mobileprovision
+```
+
+The profile must match `xyz.raiju.WiiCompiled.tvos`, include the paired Apple TV,
+and match an installed Apple Development signing identity. The installer signs
+and installs the app without launching it. It does not upload to App Store
+Connect or TestFlight.
+
+If a matching profile is unavailable, `Launcher/tvos/provision-device.py` can
+create one using an existing App Store Connect API key and development
+certificate. Set `ASC_KEY_PATH`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, and
+`APPLE_API_PROXY` to your local credential configuration and authorized proxy,
+then pass `--udid <APPLE-TV-UDID>`. It prints the profile UUID; the profile is
+saved in `~/Library/Developer/Xcode/UserData/Provisioning Profiles/`. Credentials,
+profiles, signing entitlements, bundles, and game artwork remain local.
+
+Physical installation and successful Metal/memory probes do not establish race
+performance, controller pairing, or audible output on the TV. The simulator
+verification above remains separate from physical-device gameplay testing.

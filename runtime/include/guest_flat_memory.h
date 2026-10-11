@@ -8,6 +8,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <vector>
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
 
 namespace GuestFlat {
 
@@ -20,11 +23,17 @@ inline constexpr size_t kGuestPageSize = 0x1000;
 // placement.
 inline constexpr uintptr_t kFixedFlatGuestBase = 0x0000'1000'0000'0000ull;
 #elif defined(__aarch64__) && defined(__APPLE__)
+#if TARGET_OS_TV && !TARGET_OS_SIMULATOR
+// Device tvOS reserves lower ranges. This 448 GiB region was verified with
+// vm_allocate on Apple TV 4K (A12); the simulator's 512 GiB base is out of range.
+inline constexpr uintptr_t kFixedFlatGuestBase = 0x0000'0070'0000'0000ull;
+#else
 // Keep this well above the low address ranges that Darwin's ASLR may use for
 // a PIE executable and its shared cache. Apple Silicon's user VA is wider
 // than Linux's 39-bit minimum, so this 512 GiB region is available while the
 // Linux AArch64 target retains its 64 GiB placement below.
 inline constexpr uintptr_t kFixedFlatGuestBase = 0x0000'0080'0000'0000ull;
+#endif
 #elif defined(__aarch64__)
 // 16 TiB (this arch's x86_64 sibling value) is unreachable on any AArch64
 // kernel configured for 39-bit virtual addresses (512 GiB ceiling) - common on
