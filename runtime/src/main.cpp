@@ -1525,6 +1525,14 @@ int RuntimeMain(int argc, char** argv) {
     }
 }
 
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#if TARGET_OS_TV
+#undef SDL_MAIN_HANDLED
+#include <SDL3/SDL_main.h>
+#endif
+#endif
+
 int main(int argc, char** argv) {
     return RuntimeMain(argc, argv);
 }

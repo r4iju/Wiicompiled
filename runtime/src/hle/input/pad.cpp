@@ -13,6 +13,13 @@
 
 #include <SDL3/SDL_gamepad.h>
 #include <dolphin/pad.h>
+#if defined(MKW_SIMULATOR_AUTOMATION)
+#include <TargetConditionals.h>
+#if !TARGET_OS_TV || !TARGET_OS_SIMULATOR
+#error "Simulator automation is restricted to tvOS Simulator"
+#endif
+#include "runtime/platform/tvos/simulator_input.h"
+#endif
 
 namespace {
 
@@ -110,6 +117,9 @@ extern "C" uint32_t PAD__Read_HLE(uint32_t statusPtr)
     PADStatus statuses[PAD_CHANMAX]{};
     // Keep looking for a Bluetooth Wii Remote that dropped out (or was turned on late).
     WiiRemoteInput::Poll();
+#if defined(MKW_SIMULATOR_AUTOMATION)
+    SimulatorInput::Poll();
+#endif
     uint32_t rumbleMask = PADRead(statuses);
     // Wii Remotes reach the game through KPAD, not as GameCube pads. This also
     // applies while input is blocked (overlay open) so the port does not flip

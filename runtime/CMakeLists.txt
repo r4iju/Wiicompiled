@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.25)
 # initializes the Apple toolchain so direct developer CMake invocations cannot
 # accidentally inherit the running SDK's deployment version. This cache entry
 # is harmless on non-Apple platforms and remains overridable by a caller.
-if(NOT CMAKE_OSX_DEPLOYMENT_TARGET)
+if(NOT CMAKE_OSX_DEPLOYMENT_TARGET AND NOT CMAKE_SYSTEM_NAME STREQUAL "tvOS")
     set(CMAKE_OSX_DEPLOYMENT_TARGET "12.0" CACHE STRING
         "Minimum macOS version supported by WiiCompiled" FORCE)
 endif()
@@ -28,6 +28,11 @@ endif()
 
 if(WIN32 AND MINGW AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|amd64|x86_64|X86_64)$")
     set(MKW_PLATFORM_WINDOWS TRUE)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "tvOS" AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm64|ARM64)$")
+    if(NOT CMAKE_OSX_SYSROOT MATCHES "[Aa]pple[Tt][Vv][Ss]imulator")
+        message(FATAL_ERROR "The experimental tvOS target supports the Simulator SDK only")
+    endif()
+    set(MKW_PLATFORM_TVOS TRUE)
 elseif(APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|amd64|x86_64|X86_64|arm64|ARM64)$")
     set(MKW_PLATFORM_MACOS TRUE)
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|amd64|x86_64|X86_64)$")
@@ -39,11 +44,16 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(
     set(MKW_PLATFORM_LINUX TRUE)
 else()
     message(FATAL_ERROR
-        "WiiCompiled supports 64-bit LLVM-MinGW Clang on Windows, native Linux x86_64/aarch64, or Apple Clang on macOS x86_64/arm64")
+        "WiiCompiled supports 64-bit LLVM-MinGW Clang on Windows, native Linux x86_64/aarch64, Apple Clang on macOS x86_64/arm64, or arm64 tvOS Simulator")
 endif()
 
 if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
     message(FATAL_ERROR "WiiCompiled only supports Release builds")
+endif()
+
+option(MKW_SIMULATOR_AUTOMATION "Enable local tvOS Simulator input diagnostics" OFF)
+if(MKW_SIMULATOR_AUTOMATION AND NOT (MKW_PLATFORM_TVOS AND CMAKE_OSX_SYSROOT MATCHES "[Aa]pple[Tt][Vv][Ss]imulator"))
+    message(FATAL_ERROR "MKW_SIMULATOR_AUTOMATION requires the tvOS Simulator SDK")
 endif()
 
 option(MKW_BUILD_PRODUCTS "Build translated WiiCompiled product targets" ON)
@@ -222,7 +232,7 @@ else()
         set(DAWN_ENABLE_VULKAN ON CACHE BOOL "" FORCE)
         set(DAWN_ENABLE_METAL OFF CACHE BOOL "" FORCE)
         set(TINT_BUILD_HLSL_WRITER ON CACHE BOOL "" FORCE)
-    elseif(MKW_PLATFORM_MACOS)
+    elseif(MKW_PLATFORM_MACOS OR MKW_PLATFORM_TVOS)
         set(DAWN_ENABLE_D3D12 OFF CACHE BOOL "" FORCE)
         set(DAWN_ENABLE_VULKAN OFF CACHE BOOL "" FORCE)
         set(DAWN_ENABLE_METAL ON CACHE BOOL "" FORCE)
@@ -321,9 +331,9 @@ endif()
 # a registration file is silently never compiled and never errors. The stale-glob
 # failure mode is worth far more than the milliseconds.
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "src/*.cpp")
-if(MKW_PLATFORM_MACOS)
+if(MKW_PLATFORM_MACOS OR MKW_PLATFORM_TVOS)
     list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_LIST_DIR}/src/guest_flat_memory.cpp")
-    if(MKW_PLATFORM_MACOS_ARM64)
+    if(MKW_PLATFORM_MACOS_ARM64 OR MKW_PLATFORM_TVOS)
         # HostContext's Apple Silicon backend is implemented in a small assembly
         # companion. It must be part of the product runtime as well as the
         # standalone context test; otherwise the final executable is missing

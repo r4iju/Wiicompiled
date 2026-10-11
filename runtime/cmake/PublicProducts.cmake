@@ -76,6 +76,9 @@ endfunction()
 
 add_library(mkw_runtime_common OBJECT ${SOURCES})
 mkw_configure_object_target(mkw_runtime_common)
+if(MKW_SIMULATOR_AUTOMATION)
+    target_compile_definitions(mkw_runtime_common PRIVATE MKW_SIMULATOR_AUTOMATION)
+endif()
 target_compile_features(mkw_runtime_common PRIVATE cxx_std_20)
 target_compile_definitions(mkw_runtime_common PRIVATE
     SDL_MAIN_HANDLED
@@ -313,6 +316,11 @@ endfunction()
 
 add_executable(WiiCompiled "${MKW_BASE_PRODUCT_SOURCE}" ${MKW_BASE_REGISTRATION_SOURCES})
 mkw_configure_product(WiiCompiled)
+if(MKW_PLATFORM_TVOS)
+    set_target_properties(WiiCompiled PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_INFO_PLIST "${MKW_RUNTIME_SOURCE_DIR}/platform/tvos/Info.plist.in")
+endif()
 target_precompile_headers(WiiCompiled PRIVATE
     "${MKW_RUNTIME_SOURCE_DIR}/include/mkw_pch.h")
 if(TARGET mkw_base_sensitive)

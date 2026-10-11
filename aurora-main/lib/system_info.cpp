@@ -229,7 +229,7 @@ uint64_t GetMemoryAmount() {
 }
 
 std::string GetOSVersion() {
-#if TARGET_OS_MAC
+#if TARGET_OS_OSX
   constexpr auto name = "macOS";
 #elif TARGET_OS_IOS
   constexpr auto name = "iOS";

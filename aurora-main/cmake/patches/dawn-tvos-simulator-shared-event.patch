@@ -1,0 +1,53 @@
+--- a/src/dawn/native/metal/QueueMTL.mm
++++ b/src/dawn/native/metal/QueueMTL.mm
+@@ -26,6 +26,7 @@
+ // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ 
+ #include "src/dawn/native/metal/QueueMTL.h"
++#include <TargetConditionals.h>
+ 
+ #include "dawn/native/MetalBackend.h"
+ #include "dawn/platform/DawnPlatform.h"
+@@ -121,9 +122,18 @@
+ 
+     mMtlSharedEvent.Acquire([mtlDevice newSharedEvent]);
+     if (mMtlSharedEvent == nil) {
++#if TARGET_OS_TV && TARGET_OS_SIMULATOR
++        // WiiCompiled: simulator queues can use the existing completion handlers
++        // when the host cannot create shared events. External sharing must remain off.
++        DAWN_INVALID_IF(GetDevice()->HasFeature(Feature::SharedTextureMemoryIOSurface) ||
++                            GetDevice()->HasFeature(Feature::SharedFenceMTLSharedEvent),
++                        "MTLSharedEvent unavailable; simulator texture sharing must be disabled.");
++#else
+         return DAWN_INTERNAL_ERROR("Failed to create MTLSharedEvent.");
+-    }
+-    DAWN_TRY_ASSIGN(mSharedFence, GetOrCreateSharedFence());
++#endif
++    } else {
++        DAWN_TRY_ASSIGN(mSharedFence, GetOrCreateSharedFence());
++    }
+ 
+     return mCommandContext.PrepareNextCommandBuffer(*mCommandQueue);
+ }
+@@ -243,9 +253,10 @@
+     TRACE_EVENT_ASYNC_BEGIN0(platform, GPUWork, "DeviceMTL::SubmitPendingCommandBuffer",
+                              uint64_t(pendingSerial));
+ 
+-    DAWN_ASSERT(mSharedFence);
+-    [*pendingCommands encodeSignalEvent:mSharedFence->GetMTLSharedEvent()
+-                                  value:static_cast<uint64_t>(pendingSerial)];
++    if (mSharedFence) {
++        [*pendingCommands encodeSignalEvent:mSharedFence->GetMTLSharedEvent()
++                                      value:static_cast<uint64_t>(pendingSerial)];
++    }
+ 
+     [*pendingCommands commit];
+     IncrementLastSubmittedCommandSerial();
+@@ -261,6 +272,7 @@
+     if (mSharedFence) {
+         return mSharedFence;
+     }
++    DAWN_INVALID_IF(mMtlSharedEvent == nil, "MTLSharedEvent unavailable for external sharing.");
+     SharedFenceMTLSharedEventDescriptor desc;
+     desc.sharedEvent = mMtlSharedEvent.Get();
+     return SharedFence::Create(ToBackend(GetDevice()), "Internal MTLSharedEvent", &desc);

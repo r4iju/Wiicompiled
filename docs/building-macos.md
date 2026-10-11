@@ -347,3 +347,56 @@ Launcher/local-build-macos.command \
 ```
 
 When finished, the compiled executables reside in `native-build-macos/` and the bundled `.app` packages are placed in `build-macos/Products/`.
+
+
+## Experimental tvOS Simulator build (base game)
+
+The Apple Silicon tvOS Simulator target uses UIKit, SDL3 GameController input,
+and a Metal-only Dawn build from the source commit matching the pinned release.
+It requires full Xcode with the tvOS 27 Simulator SDK, CMake, Ninja, Python 3,
+and the verified PAL assets and generated base translation from the steps above.
+The macOS Dawn archive cannot be reused for tvOS Simulator; dependency source
+code is compiled locally for the simulator ABI.
+
+```bash
+Launcher/local-build-tvos-simulator.command
+sim acquire tv
+# Use the pooled tvOS simulator UUID returned by sim acquire:
+Launcher/tvos/run-simulator.command <UDID>
+# When finished:
+sim release <UDID>
+```
+
+The app is `build-tvos-simulator/WiiCompiled.app`. The build helper verifies
+`main.dol` and `StaticR.rel`, embeds the extracted `Assets/DATA`, and signs the
+local simulator bundle. Configuration, NAND, logs, and renderer caches live in
+that simulator app's `Library/Caches/WiiCompiled`, independently of the native
+Mac installation. tvOS may purge caches; durable save export/import remains
+future work. The first launch compiles shader pipelines; subsequent launches
+reuse the simulator's renderer cache.
+
+The pinned Dawn source includes a tvOS Simulator-only queue workaround for
+hosts where Metal cannot create `MTLSharedEvent`. Ordinary rendering uses Dawn's
+existing command-buffer completion handlers; external texture and fence sharing
+remain disabled. This does not repair the host's Metal shared-event service or
+change the native macOS renderer.
+
+For autonomous local verification, build and launch with `--automation` on both
+helpers. This opt-in diagnostic target creates an SDL virtual gamepad when
+`MKW_SIMULATOR_INPUT` names a four-byte input file in the app's sandbox. The file
+contains a little-endian GameCube button mask followed by signed 8-bit X/Y stick
+values. Bit `0x8000` requests the game's CPU driver before race initialization;
+it is a diagnostic completion aid, not evidence of manual driving. The ordinary
+build omits this code. Automation is rejected outside tvOS Simulator.
+
+Verified locally on the M4 Max Studio with tvOS 27 Simulator: direct SDL virtual
+gamepad acceleration and steering on Luigi Circuit, a complete three-lap
+N64 Sherbet Land race with the diagnostic CPU driver, and ordinary-build startup
+and relaunch. The shared-event fallback was active during the repeat full race.
+Three existing guest-memory/context checks passed inside the simulator; all
+12 native macOS platform checks passed, and the native macOS product rebuilt.
+
+Simulator verification establishes startup, rendering, input processing, and
+race progression on the Studio. It does not establish frame rate, memory limits,
+Xbox pairing, or deployment readiness on a physical Apple TV. This target does
+not package Retro Rewind or the VR fork.

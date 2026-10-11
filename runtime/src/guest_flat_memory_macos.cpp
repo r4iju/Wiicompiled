@@ -1,7 +1,23 @@
 #include "guest_flat_memory.h"
 
 #include <mach/mach.h>
+#include <TargetConditionals.h>
+#if TARGET_OS_TV
+// tvOS exposes the LP64 vm_* API rather than mach_vm.h.
+using GuestVmAddress = vm_address_t;
+using GuestVmSize = vm_size_t;
+#define GuestVmAllocate vm_allocate
+#define GuestVmRemap vm_remap
+#define GuestVmDeallocate vm_deallocate
+static_assert(sizeof(GuestVmAddress) == 8);
+#else
 #include <mach/mach_vm.h>
+using GuestVmAddress = mach_vm_address_t;
+using GuestVmSize = mach_vm_size_t;
+#define GuestVmAllocate mach_vm_allocate
+#define GuestVmRemap mach_vm_remap
+#define GuestVmDeallocate mach_vm_deallocate
+#endif
 #include <sys/mman.h>
 #include <unistd.h>
 
@@ -82,8 +98,8 @@ void Initialize(const std::vector<RegionRequest>& regions) {
         }
     }
 
-    mach_vm_address_t address = kFixedFlatGuestBase;
-    if (mach_vm_allocate(mach_task_self(), &address, kGuestSpaceSize, VM_FLAGS_FIXED) != KERN_SUCCESS || address != kFixedFlatGuestBase) {
+    GuestVmAddress address = kFixedFlatGuestBase;
+    if (GuestVmAllocate(mach_task_self(), &address, kGuestSpaceSize, VM_FLAGS_FIXED) != KERN_SUCCESS || address != kFixedFlatGuestBase) {
         throw std::runtime_error("unable to reserve fixed 4 GiB macOS guest address space");
     }
     g_base = reinterpret_cast<uint8_t*>(address);
@@ -119,23 +135,23 @@ void Initialize(const std::vector<RegionRequest>& regions) {
             const auto& s = *std::find_if(stores.begin(), stores.end(), [&](const Store& x) {
                 return x.kind == r.backing && x.owned == owned;
             });
-            mach_vm_address_t target = reinterpret_cast<mach_vm_address_t>(g_base + r.base);
+            GuestVmAddress target = reinterpret_cast<GuestVmAddress>(g_base + r.base);
             vm_prot_t cur = VM_PROT_NONE, max = VM_PROT_NONE;
-            const kern_return_t kr = mach_vm_remap(
+            const kern_return_t kr = GuestVmRemap(
                 mach_task_self(),
                 &target,
-                static_cast<mach_vm_size_t>(RoundUp(r.size, pageSize)),
+                static_cast<GuestVmSize>(RoundUp(r.size, pageSize)),
                 0,
                 VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE,
                 mach_task_self(),
-                reinterpret_cast<mach_vm_address_t>(s.host + Offset(r)),
+                reinterpret_cast<GuestVmAddress>(s.host + Offset(r)),
                 FALSE,
                 &cur,
                 &max,
                 VM_INHERIT_NONE
             );
             if (kr != KERN_SUCCESS) {
-                throw std::runtime_error(std::string("mach_vm_remap guest alias failed: ") + mach_error_string(kr));
+                throw std::runtime_error(std::string("GuestVmRemap guest alias failed: ") + mach_error_string(kr));
             }
             g_mappings.push_back({r.base, r.size, s.host + Offset(r)});
         }
@@ -149,7 +165,7 @@ void Initialize(const std::vector<RegionRequest>& regions) {
                 munmap(s.host, static_cast<size_t>(s.size));
             }
         }
-        mach_vm_deallocate(mach_task_self(), address, kGuestSpaceSize);
+        GuestVmDeallocate(mach_task_self(), address, kGuestSpaceSize);
         g_mappings.clear();
         g_stores.clear();
         g_layout.clear();

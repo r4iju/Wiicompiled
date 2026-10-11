@@ -644,12 +644,14 @@ bool initialize(AuroraBackend auroraBackend) {
     std::vector<wgpu::FeatureName> requiredFeatures;
     // Optional native sharing for MetalFX. Devices without either feature keep
     // the normal renderer; the upscaler checks the enabled pair at runtime.
+#if !defined(SDL_PLATFORM_TVOS)
     if (backend == wgpu::BackendType::Metal &&
         g_adapter.HasFeature(wgpu::FeatureName::SharedTextureMemoryIOSurface) &&
         g_adapter.HasFeature(wgpu::FeatureName::SharedFenceMTLSharedEvent)) {
       requiredFeatures.push_back(wgpu::FeatureName::SharedTextureMemoryIOSurface);
       requiredFeatures.push_back(wgpu::FeatureName::SharedFenceMTLSharedEvent);
     }
+#endif
     bool implicitDeviceSynchronizationSupported = false;
     wgpu::SupportedFeatures supportedFeatures;
     g_adapter.GetFeatures(&supportedFeatures);

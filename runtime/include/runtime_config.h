@@ -1,3 +1,6 @@
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
 #pragma once
 
 #include <algorithm>
@@ -990,6 +993,13 @@ inline std::filesystem::path ResolveRelativeToConfig(const std::string& value) {
 // The extracted DATA directory. Empty when nothing is configured.
 inline std::filesystem::path ResolvedDvdRoot() {
     const std::string configured = DvdRoot();
+#if defined(__APPLE__) && TARGET_OS_TV
+    if (configured.empty()) {
+        if (const auto executable = RuntimePlatform::ExecutableDirectory()) {
+            return *executable / "DATA";
+        }
+    }
+#endif
     return configured.empty() ? std::filesystem::path{} : ResolveRelativeToConfig(configured);
 }
 

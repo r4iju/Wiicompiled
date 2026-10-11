@@ -14,6 +14,7 @@
 #endif
 
 #if defined(__APPLE__)
+#include <TargetConditionals.h>
 #include <mach-o/dyld.h>
 #include <pwd.h>
 #endif
@@ -74,7 +75,11 @@ std::filesystem::path ApplicationDataDirectory(std::string_view applicationName)
     }
 #elif defined(__APPLE__)
     if (const char* home = std::getenv("HOME"); home && *home) {
+        #if TARGET_OS_TV
+        return std::filesystem::path(home) / "Library" / "Caches" / applicationName;
+#else
         return std::filesystem::path(home) / "Library" / "Application Support" / applicationName;
+#endif
     }
     if (const passwd* user = getpwuid(getuid()); user && user->pw_dir && *user->pw_dir) {
         return std::filesystem::path(user->pw_dir) / "Library" / "Application Support" / applicationName;

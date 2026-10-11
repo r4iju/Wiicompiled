@@ -143,9 +143,9 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|amd64|x86_64|X86_64)$")
     target_compile_options(mkw_cpu_baseline_v2_compile PRIVATE -march=x86-64-v2 -w)
 endif()
 
-if(MKW_PLATFORM_MACOS)
+if(MKW_PLATFORM_MACOS OR MKW_PLATFORM_TVOS)
     # Exercise the public host-memory contracts separately from translated products.
-    if(MKW_PLATFORM_MACOS_ARM64)
+    if(MKW_PLATFORM_MACOS_ARM64 OR MKW_PLATFORM_TVOS)
         # Apple Silicon's context ABI is implemented by the local assembly backend.
         enable_language(ASM)
         add_executable(mkw_macos_context_abi_tests
@@ -179,10 +179,12 @@ if(MKW_PLATFORM_MACOS)
     target_compile_features(mkw_macos_guest_flat_memory_tests PRIVATE cxx_std_17)
     add_test(NAME mkw_macos_guest_flat_memory_tests COMMAND mkw_macos_guest_flat_memory_tests)
 
-    add_executable(mkw_macos_external_audio_tests
-        "${MKW_TEST_RUNTIME_DIR}/tests/macos_external_audio_tests.cpp"
-        "${MKW_TEST_RUNTIME_DIR}/src/external_audio_macos.cpp")
-    target_include_directories(mkw_macos_external_audio_tests PRIVATE "${MKW_TEST_RUNTIME_DIR}/include")
-    target_compile_features(mkw_macos_external_audio_tests PRIVATE cxx_std_17)
-    add_test(NAME mkw_macos_external_audio_tests COMMAND mkw_macos_external_audio_tests)
+    if(MKW_PLATFORM_MACOS)
+        add_executable(mkw_macos_external_audio_tests
+            "${MKW_TEST_RUNTIME_DIR}/tests/macos_external_audio_tests.cpp"
+            "${MKW_TEST_RUNTIME_DIR}/src/external_audio_macos.cpp")
+        target_include_directories(mkw_macos_external_audio_tests PRIVATE "${MKW_TEST_RUNTIME_DIR}/include")
+        target_compile_features(mkw_macos_external_audio_tests PRIVATE cxx_std_17)
+        add_test(NAME mkw_macos_external_audio_tests COMMAND mkw_macos_external_audio_tests)
+    endif()
 endif()

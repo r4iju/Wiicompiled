@@ -48,7 +48,7 @@ if (_aurora_dawn_provider STREQUAL "auto")
     set(_has_package TRUE)
   elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|aarch64)$")
     set(_has_package TRUE)
-  elseif (APPLE AND (CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm64|x86_64)$" OR CMAKE_OSX_ARCHITECTURES MATCHES "^(arm64|x86_64)$"))
+  elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND (CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm64|x86_64)$" OR CMAKE_OSX_ARCHITECTURES MATCHES "^(arm64|x86_64)$"))
     set(_has_package TRUE)
   endif ()
 
@@ -98,13 +98,49 @@ if (_aurora_dawn_provider STREQUAL "vendor")
       set(ABSL_MSVC_STATIC_RUNTIME ON CACHE INTERNAL "Link static runtime libraries")
     endif ()
 
+    # The package release tag belongs to dawn-build, not google/dawn.
+    # Build the exact source commit recorded in that release's metadata.
+    if (NOT DEFINED AURORA_DAWN_SOURCE_REVISION)
+      if (NOT AURORA_DAWN_VERSION STREQUAL "v20260603.191052")
+        message(FATAL_ERROR "Set AURORA_DAWN_SOURCE_REVISION for this custom Dawn release")
+      endif ()
+      set(AURORA_DAWN_SOURCE_REVISION "13abc3bc8ea2d3c2050f9e77a12d012108ceee24" CACHE STRING
+        "Dawn source commit matching the pinned prebuilt release")
+    endif ()
+    set(_dawn_source_hash_argument "")
+    if (AURORA_DAWN_SOURCE_REVISION STREQUAL "13abc3bc8ea2d3c2050f9e77a12d012108ceee24")
+      set(_dawn_source_hash_argument URL_HASH
+        "SHA256=713bea5b92d4f6c5175752fd7cbf1c3c5ce36598ff5dd98685d8a1216614ebba")
+    endif ()
     include(FetchContent)
     FetchContent_Declare(dawn
-      URL "https://github.com/google/dawn/archive/refs/tags/${AURORA_DAWN_VERSION}.tar.gz"
+      URL "https://github.com/google/dawn/archive/${AURORA_DAWN_SOURCE_REVISION}.tar.gz"
+      ${_dawn_source_hash_argument}
       DOWNLOAD_EXTRACT_TIMESTAMP FALSE
       EXCLUDE_FROM_ALL
     )
     FetchContent_MakeAvailable(dawn)
+    if (CMAKE_SYSTEM_NAME STREQUAL "tvOS" AND CMAKE_OSX_SYSROOT MATCHES "[Aa]pple[Tt][Vv][Ss]imulator")
+      if (NOT AURORA_DAWN_SOURCE_REVISION STREQUAL "13abc3bc8ea2d3c2050f9e77a12d012108ceee24")
+        message(FATAL_ERROR "The simulator shared-event patch requires the pinned Dawn source revision")
+      endif ()
+      set(_dawn_simulator_patch "${CMAKE_CURRENT_LIST_DIR}/patches/dawn-tvos-simulator-shared-event.patch")
+      execute_process(COMMAND /usr/bin/patch -p1 --dry-run --forward -i "${_dawn_simulator_patch}"
+        WORKING_DIRECTORY "${dawn_SOURCE_DIR}" RESULT_VARIABLE _patch_check OUTPUT_QUIET ERROR_QUIET)
+      if (_patch_check EQUAL 0)
+        execute_process(COMMAND /usr/bin/patch -p1 --forward -i "${_dawn_simulator_patch}"
+          WORKING_DIRECTORY "${dawn_SOURCE_DIR}" RESULT_VARIABLE _patch_result)
+        if (NOT _patch_result EQUAL 0)
+          message(FATAL_ERROR "Failed to patch Dawn's simulator queue")
+        endif ()
+      else ()
+        execute_process(COMMAND /usr/bin/patch -p1 --dry-run -R -i "${_dawn_simulator_patch}"
+          WORKING_DIRECTORY "${dawn_SOURCE_DIR}" RESULT_VARIABLE _patch_reverse OUTPUT_QUIET ERROR_QUIET)
+        if (NOT _patch_reverse EQUAL 0)
+          message(FATAL_ERROR "Dawn's simulator queue does not match the pinned patch")
+        endif ()
+      endif ()
+    endif ()
     if (NOT TARGET webgpu_dawn)
       message(FATAL_ERROR "Failed to make dawn available")
     endif ()
