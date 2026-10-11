@@ -166,6 +166,9 @@ while IFS= read -r binary; do
 done < <(find "$frameworks" -type f -print; printf '%s\n' "$macos/$product")
 
 find "$frameworks" -type f -exec codesign --force --sign - {} +
+if [[ "$product" == WiiCompiled ]]; then
+    "$(dirname "$0")/../apply-local-branding.command" macos "$app"
+fi
 codesign --force --deep --sign - "$app"
 codesign --verify --deep --strict "$app"
 printf 'MKWCBUILD:APP=%s\n' "$app"

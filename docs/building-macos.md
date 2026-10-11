@@ -351,6 +351,12 @@ When finished, the compiled executables reside in `native-build-macos/` and the 
 
 ## Experimental tvOS Simulator build (base game)
 
+Both local Mac packaging and the tvOS build optionally read `/local-branding/`,
+which is ignored by Git. `display-name.txt` supplies the local app name,
+`AppIcon.icns` supplies the Mac icon, and `Assets.xcassets` supplies tvOS artwork
+with the brand asset named `AppIcon`. These files stay local; the fork contains
+only the packaging support. Without them, builds keep the WiiCompiled branding.
+
 The Apple Silicon tvOS Simulator target uses UIKit, SDL3 GameController input,
 and a Metal-only Dawn build from the source commit matching the pinned release.
 It requires full Xcode with the tvOS 27 Simulator SDK, CMake, Ninja, Python 3,
